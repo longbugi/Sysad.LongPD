@@ -19,7 +19,7 @@ jobs:
         with:
           # Thay 'README.md' bằng tên file bạn muốn xuất. 
           # Nếu muốn xuất tất cả file .md, bạn có thể để trống hoặc dùng '*.md'
-          input_path: *.md
+          input_path: '*.md'
           output_dir: pdf-output
           # Tùy chỉnh giao diện PDF (giống giao diện GitHub)
           build_html: false
