@@ -1,6 +1,6 @@
 image:
   repository: docker.io/longbugi/gitops-demo
-  tag: 37
+  tag: 38
 replicaCount: 2
 service:
   type: NodePort
