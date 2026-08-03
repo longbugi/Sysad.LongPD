@@ -39,7 +39,7 @@ pipeline {
                     git config user.email "jenkins@lab.local"
                     git config user.name "jenkins"
                     git add .
-                    git commit -m "Update image ${TAG}"
+                    git commit -m "Update image ${TAG} [ci skip]"
                     git push https://${GIT_USER}:${GIT_TOKEN}@github.com/longbugi/Sysad.LongPD.git HEAD:main
                     """
                 }
