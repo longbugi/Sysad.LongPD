@@ -7,14 +7,29 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/longbugi/Sysad.LongPD.git'
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: 'main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/longbugi/Sysad.LongPD.git',
+                        credentialsId: 'github-token'
+                    ]],
+                    extensions: [
+                        // 1. Chặn build nếu commit message có [skip ci] hoặc [ci skip]
+                        [$class: 'MessageExclusion', excludedMessage: '.*\\[(skip ci|ci skip)\\].*'],
+                        // 2. Chặn build nếu người commit là user jenkins
+                        [$class: 'UserExclusion', excludedUsers: 'jenkins']
+                    ]
+                ])
             }
         }
+        
         stage('Build Image') {
             steps {
                 sh 'docker build -t $IMAGE:$TAG Bai42.CD'
             }
         }
+        
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -22,12 +37,13 @@ pipeline {
                     usernameVariable: 'USER',
                     passwordVariable: 'PASS')]) {
                     sh '''
-                    echo $PASS | docker login -u $USER --password-stdin
-                    docker push $IMAGE:$TAG
+                        echo $PASS | docker login -u $USER --password-stdin
+                        docker push $IMAGE:$TAG
                     '''
                 }
             }
         }
+        
         stage('Update Helm') {
             steps {
                 withCredentials([usernamePassword(
@@ -35,12 +51,12 @@ pipeline {
                     usernameVariable: 'GIT_USER',
                     passwordVariable: 'GIT_TOKEN')]) {
                     sh """
-                    sed -i 's/tag:.*/tag: ${TAG}/' Bai42.CD/chart/values.yaml
-                    git config user.email "jenkins@lab.local"
-                    git config user.name "jenkins"
-                    git add .
-                    git commit -m "Update image ${TAG} [ci skip]"
-                    git push https://${GIT_USER}:${GIT_TOKEN}@github.com/longbugi/Sysad.LongPD.git HEAD:main
+                        sed -i 's/tag:.*/tag: ${TAG}/' Bai42.CD/chart/values.yaml
+                        git config user.email "jenkins@lab.local"
+                        git config user.name "jenkins"
+                        git add .
+                        git commit -m "Update image ${TAG} [skip ci]"
+                        git push https://${GIT_USER}:${GIT_TOKEN}@github.com/longbugi/Sysad.LongPD.git HEAD:main
                     """
                 }
             }
