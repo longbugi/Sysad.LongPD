@@ -1,7 +1,7 @@
 pipeline {
     agent any
     environment {
-        IMAGE = "docker.io/yennhc/gitops-demo"
+        IMAGE = "docker.io/longbugi/gitops-demo"
         TAG = "${BUILD_NUMBER}"
     }
     stages {
@@ -19,8 +19,8 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS')]) {
+                    usernameVariable: 'longbugi',
+                    passwordVariable: 'satzu2912')]) {
                     sh '''
                     echo $PASS | docker login -u $USER --password-stdin
                     docker push $IMAGE:$TAG
