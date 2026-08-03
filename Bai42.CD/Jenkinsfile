@@ -12,7 +12,7 @@ pipeline {
         }
         stage('Build Image') {
             steps {
-                sh 'docker build -t $IMAGE:$TAG .'
+                sh 'docker build -t $IMAGE:$TAG Bai42.CD'
             }
         }
         stage('Push Image') {
