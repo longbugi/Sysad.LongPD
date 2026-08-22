@@ -1,0 +1,68 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCOUNT_ID   = '475309741409'
+        AWS_REGION       = 'ap-southeast-1'
+        ECR_HOST         = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPO         = "${ECR_HOST}/long-app"
+        IMAGE_TAG        = "${env.BUILD_NUMBER}"
+        AWS_CREDENTIAL_ID = 'aws-credentials' 
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'npm install && npm test'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                // Nạp AWS Credentials để thực thi lệnh aws cli
+                withCredentials([usernamePassword(credentialsId: env.AWS_CREDENTIAL_ID, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_HOST}
+                        docker push ${ECR_REPO}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh """
+                        export KUBECONFIG=${KUBECONFIG}
+                        kubectl apply -f deployment.yaml
+                        kubectl set image deployment/long-app \
+                        long-app=${ECR_REPO}:${IMAGE_TAG}
+                        kubectl rollout status deployment/long-app
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build/Deploy thành công.'
+        }
+        failure {
+            echo 'Build/Deploy thất bại – kiểm tra log để rollback nếu cần.'
+        }
+    }
+}
