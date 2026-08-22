@@ -51,6 +51,9 @@ pipeline {
                     dir('MockProject') {
                         sh """
                             export KUBECONFIG=${KUBECONFIG}
+                            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                            export AWS_DEFAULT_REGION=${AWS_REGION}
                             kubectl apply -f deployment.yaml
                             kubectl set image deployment/long-app long-app=${ECR_REPO}:${IMAGE_TAG}
                             kubectl rollout status deployment/long-app
