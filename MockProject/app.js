@@ -3,7 +3,7 @@ const app = express();
 const port = 3000;
 
 app.get("/", (req, res) => {
-  res.send("<h1>Deploy thành công lên AWS EKS Cluster!</h1>");
+  res.send("<h1>Long Pham - webhook test!</h1>");
 });
 
 app.listen(port, () => {
