@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCOUNT_ID   = '475309741409'
-        AWS_REGION       = 'ap-southeast-1'
-        ECR_HOST         = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPO         = "${ECR_HOST}/long-app"
-        IMAGE_TAG        = "${env.BUILD_NUMBER}"
-        AWS_CREDENTIAL_ID = 'aws-credentials' 
+        AWS_ACCOUNT_ID    = '475309741409'
+        AWS_REGION        = 'ap-southeast-1'
+        ECR_HOST          = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPO          = "${ECR_HOST}/long-app"
+        IMAGE_TAG         = "${env.BUILD_NUMBER}"
+        AWS_CREDENTIAL_ID = 'aws-credentials'
     }
 
     stages {
@@ -19,19 +19,22 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                sh 'npm install && npm test'
+                dir('MockProject') {
+                    sh 'npm install && npm test'
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
+                dir('MockProject') {
+                    sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
+                }
             }
         }
 
         stage('Push to ECR') {
             steps {
-                // Nạp AWS Credentials để thực thi lệnh aws cli
                 withCredentials([usernamePassword(credentialsId: env.AWS_CREDENTIAL_ID, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
@@ -45,13 +48,14 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
-                    sh """
-                        export KUBECONFIG=${KUBECONFIG}
-                        kubectl apply -f deployment.yaml
-                        kubectl set image deployment/long-app \
-                        long-app=${ECR_REPO}:${IMAGE_TAG}
-                        kubectl rollout status deployment/long-app
-                    """
+                    dir('MockProject') {
+                        sh """
+                            export KUBECONFIG=${KUBECONFIG}
+                            kubectl apply -f deployment.yaml
+                            kubectl set image deployment/long-app long-app=${ECR_REPO}:${IMAGE_TAG}
+                            kubectl rollout status deployment/long-app
+                        """
+                    }
                 }
             }
         }
