@@ -88,10 +88,10 @@ pipeline {
                             sleep 5
                             
                             # Gửi request HTTP nội bộ kiểm tra trạng thái app
-                            if ! kubectl exec $POD_NAME -- wget -qO- --timeout=3 http://localhost:3000/ > /dev/null 2>&1; then
+                            if ! kubectl exec $POD_NAME -- wget -qO- --timeout=5 http://localhost:3000/ > /dev/null 2>&1; then
                                 echo "Health Check HTTP thất bại! Đang tiến hành Rollback tự động..."
                                 kubectl rollout undo deployment/long-app
-                                kubectl rollout status deployment/long-app --timeout=40s
+                                kubectl rollout status deployment/long-app --timeout=120s
                                 exit 1
                             fi
 
