@@ -20,7 +20,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('MockProject') {
-                    sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
+                    sh 'docker build -t $ECR_REPO:$IMAGE_TAG .'
                 }
             }
         }
@@ -28,7 +28,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('MockProject') {
-                    sh "docker run --rm ${ECR_REPO}:${IMAGE_TAG} npm test"
+                    sh 'docker run --rm $ECR_REPO:$IMAGE_TAG npm test'
                 }
             }
         }
@@ -37,9 +37,9 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: env.AWS_CREDENTIAL_ID, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     sh '''
-                        aws ecr get-login-password --region ${AWS_REGION} | \
-                        docker login --username AWS --password-stdin ${ECR_HOST}
-                        docker push ${ECR_REPO}:${IMAGE_TAG}
+                        aws ecr get-login-password --region $AWS_REGION | \
+                        docker login --username AWS --password-stdin $ECR_HOST
+                        docker push $ECR_REPO:$IMAGE_TAG
                     '''
                 }
             }
@@ -53,26 +53,62 @@ pipeline {
                             aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
                             aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
                             aws configure set region "$AWS_REGION"
-
                             aws eks update-kubeconfig --region $AWS_REGION --name long-eks-cluster
 
                             kubectl apply -f deployment.yaml
                             kubectl set image deployment/long-app long-app=$ECR_REPO:$IMAGE_TAG
-                            kubectl rollout status deployment/long-app
+
+                            echo "Đang kiểm tra trạng thái khởi tạo Pods..."
+                            if ! kubectl rollout status deployment/long-app --timeout=60s; then
+                                echo "Deploy thất bại (Pod sập/Lỗi Image)! Đang tiến hành Rollback..."
+                                kubectl rollout undo deployment/long-app
+                                kubectl rollout status deployment/long-app
+                                exit 1
+                            fi
                         '''
                     }
                 }
             }
         }
 
+        stage('Health Check') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.AWS_CREDENTIAL_ID, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir('MockProject') {
+                        sh '''
+                            aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+                            aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+                            aws configure set region "$AWS_REGION"
+                            aws eks update-kubeconfig --region $AWS_REGION --name long-eks-cluster
+
+                            echo "Đang thực hiện Health Check HTTP..."
+                            POD_NAME=$(kubectl get pods -l app=long-app -o jsonpath='{.items[0].metadata.name}')
+                            
+                            # Đợi 5 giây để app khởi tạo xong server
+                            sleep 5
+                            
+                            # Gửi request HTTP nội bộ kiểm tra trạng thái app
+                            if ! kubectl exec $POD_NAME -- wget -qO- http://localhost:3000/ > /dev/null 2>&1; then
+                                echo "Health Check HTTP thất bại! Đang tiến hành Rollback tự động..."
+                                kubectl rollout undo deployment/long-app
+                                kubectl rollout status deployment/long-app
+                                exit 1
+                            fi
+
+                            echo "Health Check HTTP phản hồi OK!"
+                        '''
+                    }
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo 'Build/Deploy thành công.'
+            echo 'Build, Deploy và Health Check thành công!'
         }
         failure {
-            echo 'Build/Deploy thất bại – kiểm tra log để rollback nếu cần.'
+            echo 'Pipeline thất bại – Ứng dụng đã được Rollback về phiên bản chạy ổn định trước đó.'
         }
     }
 }
